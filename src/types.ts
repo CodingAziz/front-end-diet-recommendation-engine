@@ -60,3 +60,19 @@ export interface RecommendationResult {
   targetCalories: number;
   mealPlans: { [key: string]: Recipe[] };
 }
+
+export interface PredictParams {
+  n_neighbors: number;
+  return_distance: boolean;
+}
+
+export interface PredictRequest {
+  nutrition_input: number[];
+  ingredients: string[];
+  params?: PredictParams;
+}
+
+export interface PredictResponse {
+  output: Record<string, any>[] | null;
+  source: "knn_engine" | "gemini_fallback";
+}

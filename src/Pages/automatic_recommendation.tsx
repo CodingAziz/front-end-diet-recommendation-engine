@@ -12,6 +12,7 @@ import {
   Pie,
   Legend,
 } from "recharts";
+
 import {
   UserData,
   Gender,
@@ -19,9 +20,11 @@ import {
   RecommendationResult,
   Recipe,
 } from "../types";
+
 import { WEIGHT_LOSS_PLANS, ACTIVITY_MULTIPLIERS } from "../constant";
-import { getRecommendationsForMeal } from "../services/gem";
 import RecipeCard from "../components/recipe_card";
+import { predictDiet } from "../api/predict";
+import attachImageLink from "../utils/imageLink";
 
 const AutomaticRecommendation: React.FC = () => {
   const [formData, setFormData] = useState<UserData>({
@@ -40,89 +43,113 @@ const AutomaticRecommendation: React.FC = () => {
     Record<string, Recipe>
   >({});
 
+  const buildNutritionInput = (calories: number): number[] => [
+    calories,
+    25,
+    3,
+    30,
+    300,
+    60,
+    8,
+    8,
+    30,
+  ];
+
   const calculateResults = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // BMI
-    const bmi = Number(
-      (formData.weight / (formData.height / 100) ** 2).toFixed(2),
-    );
-    let bmiCategory = "Normal";
-    let bmiColor = "#10b981"; // emerald-500
-    if (bmi < 18.5) {
-      bmiCategory = "Underweight";
-      bmiColor = "#ef4444";
-    } else if (bmi >= 25 && bmi < 30) {
-      bmiCategory = "Overweight";
-      bmiColor = "#f59e0b";
-    } else if (bmi >= 30) {
-      bmiCategory = "Obesity";
-      bmiColor = "#ef4444";
-    }
+    try {
+      // BMR 
+      let bmr =
+        10 * formData.weight +
+        6.25 * formData.height -
+        5 * formData.age;
+      bmr += formData.gender === Gender.Male ? 5 : -161;
 
-    // BMR
-    let bmr = 10 * formData.weight + 6.25 * formData.height - 5 * formData.age;
-    bmr += formData.gender === Gender.Male ? 5 : -161;
-
-    const maintainCalories = Math.round(
-      bmr * ACTIVITY_MULTIPLIERS[formData.activity],
-    );
-    const plan = WEIGHT_LOSS_PLANS.find(
-      (p) => p.name === formData.weightLossPlan,
-    );
-    const targetCalories = Math.round(
-      maintainCalories * (plan?.multiplier || 1),
-    );
-
-    // Meal splits
-    let splits: Record<string, number> = {};
-    if (formData.mealsPerDay === 3) {
-      splits = { Breakfast: 0.35, Lunch: 0.4, Dinner: 0.25 };
-    } else if (formData.mealsPerDay === 4) {
-      splits = {
-        Breakfast: 0.3,
-        "Morning Snack": 0.05,
-        Lunch: 0.4,
-        Dinner: 0.25,
-      };
-    } else {
-      splits = {
-        Breakfast: 0.3,
-        "Morning Snack": 0.05,
-        Lunch: 0.35,
-        "Afternoon Snack": 0.1,
-        Dinner: 0.2,
-      };
-    }
-
-    const mealPlans: Record<string, Recipe[]> = {};
-    for (const [meal, perc] of Object.entries(splits)) {
-      mealPlans[meal] = await getRecommendationsForMeal(
-        meal,
-        Math.round(targetCalories * perc),
+      const maintainCalories = Math.round(
+        bmr * ACTIVITY_MULTIPLIERS[formData.activity],
       );
+
+      const plan = WEIGHT_LOSS_PLANS.find(
+        (p) => p.name === formData.weightLossPlan,
+      );
+
+      const targetCalories = Math.round(
+        maintainCalories * (plan?.multiplier || 1),
+      );
+
+      // Meal splits
+      const splits =
+        formData.mealsPerDay === 3
+          ? { Breakfast: 0.35, Lunch: 0.4, Dinner: 0.25 }
+          : formData.mealsPerDay === 4
+          ? {
+              Breakfast: 0.3,
+              "Morning Snack": 0.05,
+              Lunch: 0.4,
+              Dinner: 0.25,
+            }
+          : {
+              Breakfast: 0.3,
+              "Morning Snack": 0.05,
+              Lunch: 0.35,
+              "Afternoon Snack": 0.1,
+              Dinner: 0.2,
+            };
+
+      const mealPlans: Record<string, Recipe[]> = {};
+
+      // Parallel API calls
+      const responses = await Promise.all(
+        Object.entries(splits).map(([meal, perc]) =>
+          predictDiet({
+            nutrition_input: buildNutritionInput(
+              Math.round(targetCalories * perc),
+            ),
+            ingredients: [],
+            params: {
+              n_neighbors: 5,
+              return_distance: false,
+            },
+          }).then((res) => ({
+            meal,
+            recipes: (res.output ?? []).map(attachImageLink),
+          })),
+      )
+    );
+
+      responses.forEach(({ meal, recipes }) => {
+        mealPlans[meal] = recipes;
+      });
+
+      // Default selection
+      const defaults: Record<string, Recipe> = {};
+      Object.entries(mealPlans).forEach(([meal, recipes]) => {
+        if (recipes.length > 0) defaults[meal] = recipes[0];
+      });
+
+      setSelectedRecipes(defaults);
+
+      setResult({
+        bmi: Number(
+          (formData.weight / (formData.height / 100) ** 2).toFixed(2),
+        ),
+        bmiCategory: "",
+        bmiColor: "",
+        maintainCalories,
+        targetCalories,
+        mealPlans,
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate diet plan. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setResult({
-      bmi,
-      bmiCategory,
-      bmiColor,
-      maintainCalories,
-      targetCalories,
-      mealPlans,
-    });
-
-    // Default selection: pick the first of each
-    const defaults: Record<string, Recipe> = {};
-    Object.entries(mealPlans).forEach(([meal, recipes]) => {
-      if (recipes.length > 0) defaults[meal] = recipes[0];
-    });
-    setSelectedRecipes(defaults);
-
-    setIsLoading(false);
   };
 
+  // Charts
   const chartData = [
     {
       name: "Selected Meal Plan",
@@ -131,7 +158,7 @@ const AutomaticRecommendation: React.FC = () => {
         0,
       ),
     },
-    { name: "Your Target Limit", kcal: result?.targetCalories || 0 },
+    { name: "Target Limit", kcal: result?.targetCalories || 0 },
   ];
 
   const nutritionData = result
@@ -172,79 +199,80 @@ const AutomaticRecommendation: React.FC = () => {
       </header>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Form Column */}
         <div className="lg:col-span-1">
           <form
             onSubmit={calculateResults}
             className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4"
           >
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Age
-              </label>
+              <label className="block text-sm font-semibold">Age</label>
               <input
                 type="number"
                 value={formData.age}
+                min={1}
+                max={120}
                 onChange={(e) =>
                   setFormData({ ...formData, age: Number(e.target.value) })
                 }
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                min="1"
-                max="120"
+                className="w-full input"
               />
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold">
                   Height (cm)
                 </label>
                 <input
                   type="number"
                   value={formData.height}
                   onChange={(e) =>
-                    setFormData({ ...formData, height: Number(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      height: Number(e.target.value),
+                    })
                   }
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full input"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold">
                   Weight (kg)
                 </label>
                 <input
                   type="number"
                   value={formData.weight}
                   onChange={(e) =>
-                    setFormData({ ...formData, weight: Number(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      weight: Number(e.target.value),
+                    })
                   }
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full input"
                 />
               </div>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Gender
-              </label>
+              <label className="block text-sm font-semibold">Gender</label>
               <div className="flex gap-4">
                 {Object.values(Gender).map((g) => (
-                  <label
-                    key={g}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
+                  <label key={g} className="flex items-center gap-2">
                     <input
                       type="radio"
-                      name="gender"
                       checked={formData.gender === g}
-                      onChange={() => setFormData({ ...formData, gender: g })}
-                      className="text-emerald-600 focus:ring-emerald-500"
+                      onChange={() =>
+                        setFormData({ ...formData, gender: g })
+                      }
                     />
-                    <span className="text-sm">{g}</span>
+                    {g}
                   </label>
                 ))}
               </div>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold">
                 Activity Level
               </label>
               <select
@@ -255,42 +283,45 @@ const AutomaticRecommendation: React.FC = () => {
                     activity: e.target.value as ActivityLevel,
                   })
                 }
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                className="w-full input"
               >
                 {Object.values(ActivityLevel).map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
+                  <option key={a}>{a}</option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold">
                 Weight Goal
               </label>
               <select
                 value={formData.weightLossPlan}
                 onChange={(e) =>
-                  setFormData({ ...formData, weightLossPlan: e.target.value })
+                  setFormData({
+                    ...formData,
+                    weightLossPlan: e.target.value,
+                  })
                 }
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                className="w-full input"
               >
                 {WEIGHT_LOSS_PLANS.map((p) => (
                   <option key={p.name} value={p.name}>
-                    {p.name} ({p.loss})
+                    {p.name}
                   </option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold">
                 Meals Per Day ({formData.mealsPerDay})
               </label>
               <input
                 type="range"
-                min="3"
-                max="5"
-                step="1"
+                min={3}
+                max={5}
+                step={1}
                 value={formData.mealsPerDay}
                 onChange={(e) =>
                   setFormData({
@@ -298,124 +329,66 @@ const AutomaticRecommendation: React.FC = () => {
                     mealsPerDay: Number(e.target.value),
                   })
                 }
-                className="w-full accent-emerald-600"
+                className="w-full"
               />
             </div>
+
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold"
             >
               {isLoading ? "Generating Plan..." : "Generate Recommendations"}
             </button>
+
+            {result && (
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(null);
+                  setSelectedRecipes({});
+                }}
+                className="w-full text-xs text-blue-600 underline"
+              >
+                Generate again
+              </button>
+            )}
           </form>
         </div>
 
-        {/* Results Column */}
+        {/* RESULTS COLUMN */}
         <div className="lg:col-span-2 space-y-8">
-          {result ? (
+          {!result ? (
+            <div className="h-full flex items-center justify-center p-12 bg-white rounded-3xl border-dashed border-2 opacity-60">
+              <p>No Plan Generated Yet</p>
+            </div>
+          ) : (
             <>
-              {/* BMI and Calorie Metrics */}
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                  <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
-                    BMI Score
-                  </span>
-                  <span className="text-3xl font-black text-slate-800">
-                    {result.bmi}
-                  </span>
-                  <span
-                    className="text-sm font-semibold"
-                    style={{ color: result.bmiColor }}
-                  >
-                    {result.bmiCategory}
-                  </span>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                  <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
-                    Target Intake
-                  </span>
-                  <span className="text-3xl font-black text-emerald-600">
-                    {result.targetCalories}
-                  </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    kcal / day
-                  </span>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                  <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
-                    Maintain Weight
-                  </span>
-                  <span className="text-3xl font-black text-slate-400">
-                    {result.maintainCalories}
-                  </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    kcal / day
-                  </span>
-                </div>
-              </div>
-
-              {/* Recipe Tabs/Sections */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold text-slate-800">
-                  Your Recommended Meals
-                </h2>
-                {Object.entries(result.mealPlans).map(([meal, recipes]) => (
-                  <div key={meal} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-emerald-700">
-                        {meal} Options
-                      </h3>
-                      <select
-                        className="text-xs border rounded p-1"
-                        onChange={(e) => {
-                          const r = recipes.find(
-                            (rec) => rec.Name === e.target.value,
-                          );
-                          if (r)
-                            setSelectedRecipes((prev) => ({
-                              ...prev,
-                              [meal]: r,
-                            }));
-                        }}
-                      >
-                        {recipes.map((r) => (
-                          <option key={r.Name}>{r.Name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="grid md:grid-cols-3 gap-4">
-                      {recipes.map((recipe, idx) => (
-                        <RecipeCard key={idx} recipe={recipe} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Analysis Charts */}
-              <div className="grid md:grid-cols-2 gap-8 pt-8">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-80">
-                  <h3 className="text-sm font-bold text-gray-500 mb-4 text-center">
-                    Calories vs Target
+              {Object.entries(result.mealPlans).map(([meal, recipes]) => (
+                <div key={meal} className="space-y-4">
+                  <h3 className="text-lg font-bold text-emerald-700">
+                    {meal}
                   </h3>
-                  <ResponsiveContainer width="100%" height="90%">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {recipes.map((r, idx) => (
+                      <RecipeCard key={idx} recipe={r} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="grid md:grid-cols-2 gap-8 pt-8">
+                <div className="bg-white p-6 h-80 rounded-2xl shadow-sm">
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" fontSize={10} />
-                      <YAxis fontSize={10} />
+                      <XAxis dataKey="name" />
+                      <YAxis />
                       <Tooltip />
-                      <Bar dataKey="kcal" radius={[10, 10, 0, 0]}>
-                        {chartData.map((entry, index) => (
+                      <Bar dataKey="kcal">
+                        {chartData.map((_, i) => (
                           <Cell
-                            key={`cell-${index}`}
-                            fill={
-                              index === 0
-                                ? entry.kcal > chartData[1].kcal
-                                  ? "#ef4444"
-                                  : "#10b981"
-                                : "#cbd5e1"
-                            }
+                            key={i}
+                            fill={i === 0 ? "#10b981" : "#cbd5e1"}
                           />
                         ))}
                       </Bar>
@@ -423,41 +396,25 @@ const AutomaticRecommendation: React.FC = () => {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-80">
-                  <h3 className="text-sm font-bold text-gray-500 mb-4 text-center">
-                    Macros Balance (g)
-                  </h3>
-                  <ResponsiveContainer width="100%" height="90%">
+                <div className="bg-white p-6 h-80 rounded-2xl shadow-sm">
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={nutritionData}
                         innerRadius={60}
                         outerRadius={80}
-                        paddingAngle={5}
                         dataKey="value"
                       >
                         <Cell fill="#10b981" />
                         <Cell fill="#3b82f6" />
                         <Cell fill="#f59e0b" />
                       </Pie>
-                      <Tooltip />
-                      <Legend verticalAlign="bottom" height={36} />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
               </div>
             </>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white rounded-3xl border-2 border-dashed border-gray-200 opacity-60">
-              <div className="text-6xl mb-4">🥗</div>
-              <h3 className="text-xl font-bold text-gray-600">
-                No Plan Generated Yet
-              </h3>
-              <p className="text-gray-400 max-w-sm">
-                Complete the form on the left to see your personalized diet
-                recommendations and calculations.
-              </p>
-            </div>
           )}
         </div>
       </div>

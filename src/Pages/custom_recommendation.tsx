@@ -1,7 +1,8 @@
+// custom_recommendation.tsx
 import React, { useState } from "react";
 import { NutritionValues, Recipe } from "../types";
-import { getCustomRecommendations } from "../services/gem";
 import RecipeCard from "../components/recipe_card";
+import { predictDiet } from "../api/predict";
 import {
   PieChart,
   Pie,
@@ -10,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import attachImageLink from "../utils/imageLink";
 
 const CustomRecommendation: React.FC = () => {
   const [nutrition, setNutrition] = useState<NutritionValues>({
@@ -30,17 +32,48 @@ const CustomRecommendation: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
+  const buildNutritionInput = (): number[] => [
+    nutrition.Calories,
+    nutrition.FatContent,
+    nutrition.SaturatedFatContent,
+    nutrition.CholesterolContent,
+    nutrition.SodiumContent,
+    nutrition.CarbohydrateContent,
+    nutrition.FiberContent,
+    nutrition.SugarContent,
+    nutrition.ProteinContent,
+  ];
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const results = await getCustomRecommendations(
-      nutrition,
-      nbRecommendations,
-      ingredients,
-    );
-    setRecipes(results);
-    if (results.length > 0) setSelectedRecipe(results[0]);
-    setIsLoading(false);
+
+    try {
+      const response = await predictDiet({
+        nutrition_input: buildNutritionInput(),
+        ingredients: ingredients
+          ? ingredients.split(",").map((i) => i.trim())
+          : [],
+        params: {
+          n_neighbors: nbRecommendations,
+          return_distance: false,
+        },
+      });
+
+      const rawRecipes = response.output ?? [];
+      const enrichedRecipes = rawRecipes.map(attachImageLink);
+
+      setRecipes(enrichedRecipes);
+      if (enrichedRecipes.length > 0) {
+        setSelectedRecipe(enrichedRecipes[0]);
+      }
+    } catch (err) {
+      console.error("Prediction failed:", err);
+      setRecipes([]);
+      setSelectedRecipe(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getPieData = (r: Recipe) => [
@@ -141,9 +174,6 @@ const CustomRecommendation: React.FC = () => {
                   onChange={(e) => setIngredients(e.target.value)}
                   className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Separate ingredients with commas.
-                </p>
               </div>
             </div>
 
@@ -160,88 +190,6 @@ const CustomRecommendation: React.FC = () => {
         <div className="lg:col-span-2 space-y-8">
           {recipes.length > 0 ? (
             <>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                  <h2 className="text-xl font-bold text-slate-800">
-                    Search Overview
-                  </h2>
-                  <select
-                    className="border rounded-lg px-3 py-1 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                    onChange={(e) => {
-                      const r = recipes.find(
-                        (rec) => rec.Name === e.target.value,
-                      );
-                      if (r) setSelectedRecipe(r);
-                    }}
-                    value={selectedRecipe?.Name}
-                  >
-                    {recipes.map((r) => (
-                      <option key={r.Name} value={r.Name}>
-                        {r.Name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedRecipe && (
-                  <div className="grid md:grid-cols-2 gap-8 items-center">
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={getPieData(selectedRecipe)}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={90}
-                            paddingAngle={5}
-                            dataKey="value"
-                            label
-                          >
-                            <Cell fill="#10b981" />
-                            <Cell fill="#3b82f6" />
-                            <Cell fill="#f59e0b" />
-                          </Pie>
-                          <Tooltip />
-                          <Legend verticalAlign="bottom" />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="space-y-3">
-                      <h4 className="font-bold text-slate-700">
-                        {selectedRecipe.Name} Highlights
-                      </h4>
-                      <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl text-emerald-800">
-                        <span className="text-sm font-semibold">
-                          Total Calories
-                        </span>
-                        <span className="text-xl font-black">
-                          {selectedRecipe.Calories} kcal
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="p-3 bg-gray-50 rounded-xl">
-                          <p className="text-[10px] text-gray-500 uppercase font-bold">
-                            Fiber
-                          </p>
-                          <p className="text-sm font-bold text-slate-800">
-                            {selectedRecipe.FiberContent}g
-                          </p>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-xl">
-                          <p className="text-[10px] text-gray-500 uppercase font-bold">
-                            Sugar
-                          </p>
-                          <p className="text-sm font-bold text-slate-800">
-                            {selectedRecipe.SugarContent}g
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="grid md:grid-cols-2 gap-6">
                 {recipes.map((recipe, idx) => (
                   <RecipeCard key={idx} recipe={recipe} />
@@ -250,14 +198,9 @@ const CustomRecommendation: React.FC = () => {
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white rounded-3xl border-2 border-dashed border-gray-200 opacity-60">
-              <div className="text-6xl mb-4">🔍</div>
               <h3 className="text-xl font-bold text-gray-600">
                 No Recipes Found
               </h3>
-              <p className="text-gray-400 max-w-sm">
-                Adjust your sliders and target ingredients to find recipes
-                tailored to your nutrition goals.
-              </p>
             </div>
           )}
         </div>
