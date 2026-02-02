@@ -6,7 +6,7 @@ const Home: React.FC = () => {
     <div className="py-12 px-4">
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 mb-6">
-          Welcome to <span className="text-emerald-600">DietSys</span> 👋
+          Welcome to <span className="text-emerald-600">SmartBite</span> 👋
         </h1>
         <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
           Your personal AI-powered companion for nutritional excellence and body
@@ -51,11 +51,11 @@ const Home: React.FC = () => {
           <h3 className="text-3xl font-bold mb-4">Scientific Approach</h3>
           <p className="text-emerald-100 mb-6">
             A diet recommendation web application using content-based logic and
-            Gemini AI. Built with modern technologies like React, Tailwind, and
-            Google Generative AI.
+            a custom diet recommendation engine working on the backend with FASTAPI. Built with modern technologies like React, Tailwind, and
+            FASTAPI.
           </p>
           <a
-            href="#"
+            href="https://github.com/CodingAziz/diet-recommendation-engine"
             className="underline font-medium hover:text-white transition-colors"
           >
             View project details on GitHub

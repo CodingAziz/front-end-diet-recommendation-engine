@@ -18,7 +18,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}
       >
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-emerald-400">DietSys.</h1>
+          <h1 className="text-2xl font-bold text-emerald-400">SmartBite.</h1>
           <p className="text-xs text-slate-400 mt-1">Smart Nutrition Planner</p>
         </div>
         <nav className="mt-6">
