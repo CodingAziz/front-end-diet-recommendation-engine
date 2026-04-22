@@ -1,12 +1,27 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("diet-recommendation-theme") || "light";
+    setIsDarkMode(storedTheme === "dark");
+    document.documentElement.classList.toggle("dark", storedTheme === "dark");
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = isDarkMode ? "light" : "dark";
+    setIsDarkMode(!isDarkMode);
+    window.localStorage.setItem("diet-recommendation-theme", nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  };
 
   const navItems = [
     { path: "/", label: "Home", icon: "🏠" },
+    { path: "/dashboard", label: "Dashboard", icon: "📊" },
     { path: "/automatic", label: "Auto Recommendation", icon: "💪" },
     { path: "/custom", label: "Custom Food", icon: "🔍" },
   ];
@@ -34,19 +49,36 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </Link>
           ))}
         </nav>
+
+        <div className="mt-auto p-6 border-t border-slate-800">
+          <button
+            onClick={toggleTheme}
+            className="w-full rounded-full bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            Switch to {isDarkMode ? "light" : "dark"} mode
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-gray-50 relative">
-        <header className="md:hidden bg-white p-4 shadow-sm flex items-center justify-between sticky top-0 z-40">
+      <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-slate-950 relative">
+        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-950 shadow-sm md:hidden sticky top-0 z-40">
           <h1 className="text-xl font-bold text-emerald-600">DietSys.</h1>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 bg-gray-100 rounded"
-          >
-            ☰
-          </button>
-        </header>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              {isDarkMode ? "Light" : "Dark"}
+            </button>
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 bg-gray-100 rounded"
+            >
+              ☰
+            </button>
+          </div>
+        </div>
         <div className="max-w-6xl mx-auto p-4 md:p-8">{children}</div>
       </main>
     </div>

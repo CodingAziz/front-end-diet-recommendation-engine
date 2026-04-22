@@ -3,37 +3,51 @@ import { Recipe } from "../types";
 
 interface RecipeCardProps {
   recipe: Recipe;
+  onSelect?: (recipe: Recipe) => void;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+    <div className="group flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-950">
       <img
         src={recipe.image_link}
         alt={recipe.Name}
-        className="w-full h-48 object-cover"
+        className="w-full object-cover h-56 sm:h-48"
       />
-      <div className="p-4">
-        <h3 className="font-bold text-lg mb-2 text-slate-800 line-clamp-1">
-          {recipe.Name}
-        </h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          <span className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-full font-semibold">
-            {recipe.Calories} kcal
-          </span>
-          <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full font-semibold">
-            {recipe.ProteinContent}g protein
-          </span>
+      <div className="flex flex-1 flex-col p-4">
+        <div>
+          <h3 className="font-bold text-lg mb-2 text-slate-900 dark:text-slate-100 line-clamp-2">
+            {recipe.Name}
+          </h3>
+          <div className="grid grid-cols-2 gap-2 mb-4 text-xs text-slate-600 dark:text-slate-300">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-500/10">
+              {recipe.Calories} kcal
+            </span>
+            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 dark:bg-blue-500/10">
+              {recipe.ProteinContent}g protein
+            </span>
+          </div>
         </div>
 
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full py-2 px-4 border border-emerald-500 text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors text-sm font-semibold"
-        >
-          {isOpen ? "Close Details" : "View Recipe"}
-        </button>
+        <div className="grid gap-3 flex-1">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full rounded-2xl border border-emerald-500 bg-white px-4 py-3 text-sm font-semibold text-emerald-600 transition-colors duration-200 hover:bg-emerald-50 dark:bg-slate-950"
+          >
+            {isOpen ? "Close Details" : "View Recipe"}
+          </button>
+          {onSelect ? (
+            <button
+              type="button"
+              onClick={() => onSelect(recipe)}
+              className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-slate-800"
+            >
+              Select Recipe
+            </button>
+          ) : null}
+        </div>
 
         {isOpen && (
           <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
