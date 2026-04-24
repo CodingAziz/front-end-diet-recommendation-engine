@@ -140,7 +140,7 @@ const AutomaticRecommendation: React.FC = () => {
     setIsLoading(true);
 
     try {
-      let bmr =
+      const bmr =
         10 * formData.weight +
         6.25 * formData.height -
         5 * formData.age +
@@ -331,7 +331,7 @@ const AutomaticRecommendation: React.FC = () => {
         setSelectedMeal(Object.keys(sampleMealPlans)[0]);
 
         // Calculate calories for sample data
-        let sampleBmr =
+        const sampleBmr =
           10 * formData.weight +
           6.25 * formData.height -
           5 * formData.age +
