@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Recipe } from "../types";
 // maps backend recipe → frontend recipe
 const attachImageLink = (recipe: any): Recipe => {

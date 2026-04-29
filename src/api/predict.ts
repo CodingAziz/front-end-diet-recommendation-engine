@@ -1,17 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  FeedbackRequest,
-  FeedbackResponse,
-  ExplainResponse,
-  FeatureImportanceRequest,
-  FeatureImportanceResponse,
-  HealthStatus,
-  ModelInfoResponse,
-  ModelPerformance,
   PredictRequest,
   PredictResponse,
-  RecommendationStatsRequest,
-  RecommendationStatsResponse,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -52,7 +42,6 @@ export async function predictDiet(
     );
   }
 
-  // Build request body with exact format expected by backend
   const requestBody = {
     nutrition_input: payload.nutrition_input,
     bmi: payload.bmi,
@@ -63,7 +52,7 @@ export async function predictDiet(
 
   console.log("Sending predict request:", requestBody);
 
-  const response = await buildRequest<PredictResponse>("/predict/", {
+  const response = await buildRequest<PredictResponse>("/predictions/predict", {
     method: "POST",
     body: JSON.stringify(requestBody),
   });
@@ -72,74 +61,70 @@ export async function predictDiet(
   return response;
 }
 
-export async function healthCheck(): Promise<HealthStatus> {
-  return buildRequest<HealthStatus>("/health");
-}
+// export async function getModelsInfo(): Promise<ModelInfoResponse> {
+//   return buildRequest<ModelInfoResponse>("/models/info");
+// }
 
-export async function getModelsInfo(): Promise<ModelInfoResponse> {
-  return buildRequest<ModelInfoResponse>("/models/info");
-}
+// export async function getModelsPerformance(): Promise<ModelPerformance[]> {
+//   const response = await buildRequest<any>("/models/performance");
 
-export async function getModelsPerformance(): Promise<ModelPerformance[]> {
-  const response = await buildRequest<any>("/models/performance");
+//   if (Array.isArray(response)) {
+//     return response;
+//   }
 
-  if (Array.isArray(response)) {
-    return response;
-  }
+//   if (response.models && typeof response.models === "object") {
+//     return Object.entries(response.models).map(([model, stats]) => {
+//       const typedStats = stats as Record<string, any>;
+//       return {
+//         model,
+//         nutritional_mae: typedStats.nutritional_mae,
+//         diversity_score: typedStats.diversity_score,
+//         latency_ms: typedStats.latency_ms,
+//         coverage: typedStats.coverage,
+//       } as ModelPerformance;
+//     });
+//   }
 
-  if (response.models && typeof response.models === "object") {
-    return Object.entries(response.models).map(([model, stats]) => {
-      const typedStats = stats as Record<string, any>;
-      return {
-        model,
-        nutritional_mae: typedStats.nutritional_mae,
-        diversity_score: typedStats.diversity_score,
-        latency_ms: typedStats.latency_ms,
-        coverage: typedStats.coverage,
-      } as ModelPerformance;
-    });
-  }
+//   throw new Error("Unexpected models performance response format");
+// }
 
-  throw new Error("Unexpected models performance response format");
-}
+// export async function submitFeedback(
+//   payload: FeedbackRequest
+// ): Promise<FeedbackResponse> {
+//   return buildRequest<FeedbackResponse>("/feedback/", {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// }
 
-export async function submitFeedback(
-  payload: FeedbackRequest
-): Promise<FeedbackResponse> {
-  return buildRequest<FeedbackResponse>("/feedback/", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
+// export async function explainRecipe(recipeId: string): Promise<ExplainResponse> {
+//   const requestBody = { recipe_id: recipeId };
 
-export async function explainRecipe(recipeId: string): Promise<ExplainResponse> {
-  const requestBody = { recipe_id: recipeId };
+//   try {
+//     return await buildRequest<ExplainResponse>("/explain/", {
+//       method: "POST",
+//       body: JSON.stringify(requestBody),
+//     });
+//   } catch (error) {
+//     console.warn("POST /explain/ failed, falling back to GET /explain/{id}", error);
+//     return buildRequest<ExplainResponse>(`/explain/${encodeURIComponent(recipeId)}`);
+//   }
+// }
 
-  try {
-    return await buildRequest<ExplainResponse>("/explain/", {
-      method: "POST",
-      body: JSON.stringify(requestBody),
-    });
-  } catch (error) {
-    console.warn("POST /explain/ failed, falling back to GET /explain/{id}", error);
-    return buildRequest<ExplainResponse>(`/explain/${encodeURIComponent(recipeId)}`);
-  }
-}
+// export async function submitRecommendationStats(
+//   payload: RecommendationStatsRequest
+// ): Promise<RecommendationStatsResponse> {
+//   return buildRequest<RecommendationStatsResponse>("/analytics/recommendation-stats", {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// }
 
-export async function submitRecommendationStats(
-  payload: RecommendationStatsRequest
-): Promise<RecommendationStatsResponse> {
-  return buildRequest<RecommendationStatsResponse>("/analytics/recommendation-stats", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function getFeatureImportance(
-  payload: FeatureImportanceRequest
-): Promise<FeatureImportanceResponse> {
-  return buildRequest<FeatureImportanceResponse>("/models/feature-importance", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
+// export async function getFeatureImportance(
+//   payload: FeatureImportanceRequest
+// ): Promise<FeatureImportanceResponse> {
+//   return buildRequest<FeatureImportanceResponse>("/models/feature-importance", {
+//     method: "POST",
+//     body: JSON.stringify(payload),
+//   });
+// }
