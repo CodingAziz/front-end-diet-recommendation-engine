@@ -12,7 +12,6 @@ const App: React.FC = () => {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          {/* <Route path="/dashboard" element={<Dashboard />} /> */}
           <Route path="/automatic" element={<AutomaticRecommendation />} />
           <Route path="/custom" element={<CustomRecommendation />} />
           <Route path="*" element={<Home />} />
